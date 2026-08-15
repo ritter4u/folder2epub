@@ -27,6 +27,17 @@ def test_cache_key_changes_with_engine_and_options(tmp_path: Path):
     assert len({paddle_key, manga_key, changed_key}) == 3
 
 
+def test_cache_key_accepts_non_json_options(tmp_path: Path):
+    image = tmp_path / "001.jpg"
+    image.write_bytes(b"image")
+
+    class Options:
+        pass
+
+    key = cache_key(image, "mock", "ja", {"custom": Options(), "path": image})
+    assert len(key) == 12
+
+
 def test_mock_backend_uses_separate_cache_file(tmp_path: Path, monkeypatch):
     image = tmp_path / "001.jpg"
     image.write_bytes(b"image")
