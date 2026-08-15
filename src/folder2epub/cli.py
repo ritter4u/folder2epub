@@ -89,10 +89,14 @@ def main(
         str,
         typer.Option(
             "--ocr-engine",
-            help="OCR engine: paddle | manga | tesseract",
+            help="OCR engine: mlx | paddle | manga | tesseract",
             case_sensitive=False,
         ),
-    ] = "paddle",
+    ] = "mlx",
+    ocr_model: Annotated[
+        str,
+        typer.Option("--ocr-model", help="OCR model preset. MLX: auto | mobile | server"),
+    ] = "auto",
     psm: Annotated[
         int,
         typer.Option("--psm", help="Tesseract Page Segmentation Mode"),
@@ -153,6 +157,7 @@ def main(
                 ocr=ocr,
                 lang=lang,
                 ocr_engine=ocr_engine,
+                ocr_model=ocr_model,
                 psm=psm,
                 mode=mode,
                 title=title,
@@ -202,7 +207,7 @@ def main(
             backend = create_ocr_backend(
                 engine=ocr_engine,
                 language=lang,
-                options={"psm": psm},
+                options={"psm": psm, "model": ocr_model},
             )
         except OCRError as exc:
             console.print(f"[red]{exc}[/red]")
@@ -226,6 +231,7 @@ def main(
                     psm=psm,
                     force=force_ocr,
                     engine=ocr_engine,
+                    options={"psm": psm, "model": ocr_model},
                     backend=backend,
                 )
             except OCRError as exc:

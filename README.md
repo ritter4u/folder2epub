@@ -1,6 +1,14 @@
 # folder2epub
 
-이미지 폴더를 EPUB으로 만들고, 선택적으로 페이지별 OCR 텍스트를 넣는 Python CLI입니다. 기본 OCR engine은 일본어에 맞춘 PaddleOCR이며, manga-ocr와 Tesseract를 선택적으로 사용할 수 있습니다.
+이미지 폴더를 EPUB으로 만들고, 선택적으로 페이지별 OCR 텍스트를 넣는 Python CLI입니다. 기본 OCR engine은 Apple Silicon용 MLX OCR이며, PaddleOCR, manga-ocr와 Tesseract를 선택적으로 사용할 수 있습니다.
+
+## MLX란?
+
+MLX는 Apple이 Apple Silicon용으로 만든 머신러닝 프레임워크입니다. M1/M2/M3/M4의 unified memory와 Metal GPU를 활용해 모델을 Mac에서 로컬로 실행합니다.
+
+이 프로젝트의 `mlx-ppocr`는 PaddleOCR의 PP-OCR 계열 모델을 MLX runtime에서 실행하도록 포팅한 별도 구현입니다. 따라서 `paddleocr` Python package와는 다른 backend이며, PaddlePaddle이나 PyTorch를 설치하지 않고 MLX 모델을 사용합니다.
+
+MLX weight는 일반 PaddleOCR weight와 runtime과 파일 형식이 달라 직접 호환되지 않습니다. Intel Mac이나 Metal이 없는 headless 환경에서는 실행할 수 없습니다.
 
 ## macOS Quick Start
 
@@ -9,7 +17,8 @@ git clone <repository-url>
 cd folder2epub
 uv venv
 source .venv/bin/activate
-uv pip install -e ".[paddle]"
+uv tool install mlx-ppocr
+uv pip install -e ".[mlx]"
 folder2epub ~/Books/my-book --ocr
 ```
 
@@ -18,11 +27,12 @@ folder2epub ~/Books/my-book --ocr
 ```bash
 folder2epub ~/Books/my-book \
     --ocr \
-    --ocr-engine paddle \
+    --ocr-engine mlx \
+    --ocr-model mobile \
     --lang ja
 ```
 
-`uv pip install -e ".[all]"`을 사용하면 모든 Python OCR backend를 설치할 수 있습니다. PaddleOCR는 첫 실행 시 모델을 다운로드할 수 있으며, CPU에서도 동작합니다. Apple Silicon에서 PaddlePaddle wheel 설치가 실패하면 현재 Python 버전에 맞는 PaddlePaddle 배포 지원 여부를 확인해야 합니다.
+MLX OCR은 Apple Silicon의 Metal GPU를 사용합니다. MLX 모델은 첫 실행 시 다운로드될 수 있으며, `mlx-ocr`가 이미 설치되어 있다면 별도 설치 없이 사용할 수 있습니다.
 
 PaddleOCR 모델 다운로드가 끝나면 이후 실행에서는 로컬 캐시를 사용합니다. OCR을 중단한 경우 같은 명령을 다시 실행하면 이미 저장된 페이지 cache를 재사용합니다.
 
@@ -34,23 +44,24 @@ PaddleOCR 모델 다운로드가 끝나면 이후 실행에서는 로컬 캐시�
 folder2epub /path/to/book
 ```
 
-OCR 기본값은 `paddle`, 언어 기본값은 `ja`입니다.
+OCR 기본값은 `mlx`, 언어 기본값은 `ja`입니다.
 
 ```bash
 folder2epub book --ocr
-folder2epub book --ocr --ocr-engine paddle --lang ja
+folder2epub book --ocr --ocr-engine mlx --ocr-model mobile --lang ja
 folder2epub book --ocr --ocr-engine manga --lang ja
 folder2epub book --ocr --ocr-engine tesseract --lang jpn
 ```
 
 ### 영문 OCR 리소스 사용
 
-PaddleOCR에서 영어 리소스를 사용하려면 `--lang en`을 지정합니다. EPUB metadata도 영어로 맞추려면 `--epub-language en`을 함께 사용합니다.
+MLX에서 영어 리소스를 사용하려면 `--lang en`과 `--ocr-model server`를 지정합니다. EPUB metadata도 영어로 맞추려면 `--epub-language en`을 함께 사용합니다.
 
 ```bash
 folder2epub ~/Books/english-book \
     --ocr \
-    --ocr-engine paddle \
+    --ocr-engine mlx \
+    --ocr-model server \
     --lang en \
     --epub-language en
 ```
@@ -76,7 +87,7 @@ folder2epub --help
 folder2epub --ui-lang en --help
 ```
 
-주요 옵션은 `--ocr`, `--ocr-engine paddle|manga|tesseract`, `--lang`, `--ui-lang ko|en`, `--locale-dir`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
+주요 옵션은 `--ocr`, `--ocr-engine mlx|paddle|manga|tesseract`, `--ocr-model auto|mobile|server`, `--lang`, `--ui-lang ko|en`, `--locale-dir`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
 
 ## 다국어 메시지와 외부 리소스
 
@@ -160,14 +171,15 @@ epub/Extra/Book B.epub
 선택한 backend가 없으면 실행이 중단되고 설치 명령을 안내합니다.
 
 ```bash
-uv pip install -e ".[paddle]"  # 기본 backend
+uv tool install mlx-ppocr       # 기본 MLX backend
+uv pip install -e ".[paddle]"  # 선택적 PaddleOCR backend
 uv pip install -e ".[manga]"   # manga-ocr
 brew install tesseract
 brew install tesseract-lang
 uv pip install -e ".[tesseract]" # Python 추가 패키지는 없음
 ```
 
-Tesseract는 호환성을 위해 남아 있지만 기본 engine이 아닙니다. `--ocr-engine tesseract`를 명시해야 합니다.
+PaddleOCR, manga-ocr, Tesseract는 호환성을 위해 남아 있지만 기본 engine이 아닙니다. `--ocr-engine`으로 명시해야 합니다.
 
 ## EPUB 모드와 캐시
 
@@ -192,14 +204,15 @@ OCR 없이 실행하면 자동으로 `image` 모드가 됩니다. OCR 캐시는 
 
 ## 일본어 스캔 참고
 
-PaddleOCR backend는 일본어 가로쓰기와 세로쓰기, 약간 회전된 페이지를 고려해 text-line orientation을 활성화합니다. 후리가나, 오래된 스캔, 큰 여백과 테두리는 원본 이미지 상태에 따라 인식 결과가 달라질 수 있습니다. 별도 전처리 pipeline은 다음 단계에서 backend 앞에 추가할 수 있도록 분리해 두었습니다.
+MLX backend는 Apple Silicon의 Metal GPU를 사용하며 `--ocr-model auto|mobile|server`로 모델 preset을 선택합니다. 일본어 세로쓰기, 후리가나, 오래된 스캔은 모델과 원본 품질에 따라 결과가 달라질 수 있습니다. 별도 전처리 pipeline은 다음 단계에서 backend 앞에 추가할 수 있도록 분리해 두었습니다.
 
 ## 개발
 
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install -e ".[paddle]"
+uv tool install mlx-ppocr
+uv pip install -e .
 uv pip install pytest
 python -m compileall src
 uv run pytest
@@ -215,7 +228,8 @@ src/folder2epub/
 ├── models.py          # Page 모델
 └── ocr/
     ├── base.py        # OCRBackend Protocol
-    ├── paddle.py      # PaddleOCR backend
+    ├── mlx.py         # MLX OCR backend
+    ├── paddle.py      # 선택적 PaddleOCR backend
     ├── manga.py       # 선택적 manga-ocr backend
     └── tesseract.py   # 호환성용 Tesseract backend
 ```
@@ -228,14 +242,15 @@ src/folder2epub/
 
 # English
 
-`folder2epub` converts folders of page images into EPUB files. PaddleOCR is the default OCR backend and Japanese (`ja`) is the default OCR language. `manga-ocr` and Tesseract are optional backends.
+`folder2epub` converts folders of page images into EPUB files. MLX OCR is the default backend on Apple Silicon and Japanese (`ja`) is the default OCR language. PaddleOCR, `manga-ocr`, and Tesseract are optional backends.
 
 ## Quick start
 
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install -e ".[paddle]"
+uv tool install mlx-ppocr
+uv pip install -e .
 folder2epub ~/Books/my-book --ocr
 ```
 
@@ -250,7 +265,8 @@ Use English OCR resources:
 ```bash
 folder2epub ~/Books/english-book \
   --ocr \
-  --ocr-engine paddle \
+  --ocr-engine mlx \
+  --ocr-model server \
   --lang en \
   --epub-language en
 ```

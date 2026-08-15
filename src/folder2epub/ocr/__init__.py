@@ -8,10 +8,12 @@ from typing import Any
 
 from .base import OCRError, OCRBackend
 from .manga import MangaOCRBackend
+from .mlx import MLXOCRBackend
 from .paddle import PaddleOCRBackend
 from .tesseract import TesseractOCRBackend
 
-SUPPORTED_ENGINES = ("paddle", "manga", "tesseract")
+SUPPORTED_ENGINES = ("mlx", "paddle", "manga", "tesseract")
+_BACKEND_CACHE: dict[tuple[str, str, str], OCRBackend] = {}
 
 
 def create_ocr_backend(
@@ -20,14 +22,26 @@ def create_ocr_backend(
     options: dict[str, Any] | None = None,
 ) -> OCRBackend:
     normalized = engine.strip().lower()
-    if normalized == "paddle":
-        return PaddleOCRBackend(language, options)
-    if normalized == "manga":
-        return MangaOCRBackend(language, options)
-    if normalized == "tesseract":
-        return TesseractOCRBackend(language, options)
-    supported = ", ".join(SUPPORTED_ENGINES)
-    raise OCRError(f"지원하지 않는 OCR engine입니다: {engine}. 사용 가능: {supported}")
+    cache_options = json.dumps(options or {}, ensure_ascii=False, sort_keys=True)
+    cache_key_value = (normalized, language, cache_options)
+    cached = _BACKEND_CACHE.get(cache_key_value)
+    if cached is not None:
+        return cached
+
+    if normalized == "mlx":
+        backend = MLXOCRBackend(language, options)
+    elif normalized == "paddle":
+        backend = PaddleOCRBackend(language, options)
+    elif normalized == "manga":
+        backend = MangaOCRBackend(language, options)
+    elif normalized == "tesseract":
+        backend = TesseractOCRBackend(language, options)
+    else:
+        supported = ", ".join(SUPPORTED_ENGINES)
+        raise OCRError(f"지원하지 않는 OCR engine입니다: {engine}. 사용 가능: {supported}")
+
+    _BACKEND_CACHE[cache_key_value] = backend
+    return backend
 
 
 def cache_key(
