@@ -24,6 +24,8 @@ folder2epub ~/Books/my-book \
 
 `uv pip install -e ".[all]"`을 사용하면 모든 Python OCR backend를 설치할 수 있습니다. PaddleOCR는 첫 실행 시 모델을 다운로드할 수 있으며, CPU에서도 동작합니다. Apple Silicon에서 PaddlePaddle wheel 설치가 실패하면 현재 Python 버전에 맞는 PaddlePaddle 배포 지원 여부를 확인해야 합니다.
 
+PaddleOCR 모델 다운로드가 끝나면 이후 실행에서는 로컬 캐시를 사용합니다. OCR을 중단한 경우 같은 명령을 다시 실행하면 이미 저장된 페이지 cache를 재사용합니다.
+
 ## 사용법
 
 이미지만 EPUB으로 만들기:
@@ -69,6 +71,32 @@ folder2epub ~/Books --recursive --output-dir ~/Books/epub
 ```
 
 이미지가 있는 모든 하위 폴더를 찾아 개별 EPUB을 만들며, 중첩된 폴더 구조는 출력 위치에도 유지합니다.
+
+## Recursive batch 처리
+
+이미지가 있는 하위 폴더를 각각 EPUB으로 만들 수 있습니다.
+
+```text
+Books/
+├── Book A/
+│   ├── 001.jpg
+│   └── 002.jpg
+└── Extra/Book B/
+    └── 001.png
+```
+
+```bash
+folder2epub ./Books --recursive --output-dir ./epub
+```
+
+결과:
+
+```text
+epub/Book A.epub
+epub/Extra/Book B.epub
+```
+
+이미지가 포함된 폴더명은 EPUB 파일명이 되고, 중첩된 상대 경로는 출력 위치에도 유지됩니다. `--output`과 `--output-dir`은 함께 사용할 수 없습니다.
 
 ## OCR backend 설치
 
@@ -117,5 +145,22 @@ source .venv/bin/activate
 uv pip install -e ".[paddle]"
 uv pip install pytest
 python -m compileall src
-pytest
+uv run pytest
 ```
+
+## 프로젝트 구조
+
+```text
+src/folder2epub/
+├── cli.py             # CLI와 단일/recursive 실행
+├── epub_builder.py    # image/text/hybrid EPUB 생성
+├── images.py          # 지원 확장자와 자연 정렬
+├── models.py          # Page 모델
+└── ocr/
+    ├── base.py        # OCRBackend Protocol
+    ├── paddle.py      # PaddleOCR backend
+    ├── manga.py       # 선택적 manga-ocr backend
+    └── tesseract.py   # 호환성용 Tesseract backend
+```
+
+자세한 설계는 [`doc/design.ko.md`](doc/design.ko.md)와 [`doc/design.en.md`](doc/design.en.md)를 참고하세요.
