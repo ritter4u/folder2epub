@@ -90,6 +90,71 @@ def test_mock_batch_backend_uses_one_call_and_page_caches(tmp_path: Path):
         image: f"recognized: {image.name}" for image in images
     }
     assert backend.calls == 1
-    assert ocr_images(images, cache_dir, engine="mock", backend=backend)
+    assert ocr_images(images, cache_dir, engine="mock", backend=backend) == {
+        image: f"recognized: {image.name}" for image in images
+    }
     assert backend.calls == 1
-    assert len(list(cache_dir.glob("*.mock-ja-*.txt"))) == 2
+    cache_files = list(cache_dir.glob("*.mock-ja-*.txt"))
+    assert len(cache_files) == 2
+    assert {path.read_text(encoding="utf-8") for path in cache_files} == {
+        "recognized: 001.jpg",
+        "recognized: 002.jpg",
+    }
+
+
+def test_mock_batch_backend_only_processes_uncached_pages(tmp_path: Path):
+    images = [tmp_path / "001.jpg", tmp_path / "002.jpg"]
+    for image in images:
+        image.write_bytes(b"image")
+
+    class MockBatchBackend:
+        name = "mock"
+
+        def __init__(self):
+            self.calls = 0
+            self.seen_paths: list[Path] = []
+
+        def recognize_many(self, paths: list[Path]) -> dict[Path, str]:
+            self.calls += 1
+            self.seen_paths.extend(paths)
+            return {path.resolve(): f"recognized: {path.name}" for path in paths}
+
+    backend = MockBatchBackend()
+    cache_dir = tmp_path / ".folder2epub-cache"
+    ocr_images([images[0]], cache_dir, engine="mock", backend=backend)
+    assert backend.calls == 1
+
+    backend.seen_paths.clear()
+    results = ocr_images(images, cache_dir, engine="mock", backend=backend)
+
+    assert results == {image: f"recognized: {image.name}" for image in images}
+    assert backend.calls == 2
+    assert backend.seen_paths == [images[1]]
+
+    backend.seen_paths.clear()
+    ocr_images(images, cache_dir, engine="mock", backend=backend)
+    assert backend.calls == 2
+    assert backend.seen_paths == []
+
+
+def test_ocr_images_raises_when_batch_backend_omits_page(tmp_path: Path):
+    images = [tmp_path / "001.jpg", tmp_path / "002.jpg"]
+    for image in images:
+        image.write_bytes(b"image")
+
+    class MockBatchBackend:
+        name = "mock"
+
+        def recognize_many(self, paths: list[Path]) -> dict[Path, str]:
+            return {
+                path.resolve(): f"recognized: {path.name}"
+                for path in paths[:-1]
+            }
+
+    with pytest.raises(OCRError, match="002.jpg"):
+        ocr_images(
+            images,
+            tmp_path / ".folder2epub-cache",
+            engine="mock",
+            backend=MockBatchBackend(),
+        )
