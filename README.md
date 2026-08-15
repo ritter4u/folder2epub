@@ -47,7 +47,28 @@ folder2epub book --ocr --ocr-engine tesseract --lang jpn
 folder2epub --help
 ```
 
-주요 옵션은 `--ocr`, `--ocr-engine paddle|manga|tesseract`, `--lang`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`입니다.
+주요 옵션은 `--ocr`, `--ocr-engine paddle|manga|tesseract`, `--lang`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
+
+정확한 파일명을 지정하려면 `--output`을 사용합니다.
+
+```bash
+folder2epub /path/to/book --output ~/Books/my-book.epub
+```
+
+출력 디렉터리만 지정하면 책 폴더명을 EPUB 파일명으로 사용합니다.
+
+```bash
+folder2epub /path/to/book --output-dir ~/Books/epub
+# 결과: ~/Books/epub/book.epub
+```
+
+`--output`과 `--output-dir`은 함께 사용할 수 없습니다. 하위 폴더를 각각 EPUB으로 만들 때는 다음처럼 실행합니다.
+
+```bash
+folder2epub ~/Books --recursive --output-dir ~/Books/epub
+```
+
+이미지가 있는 모든 하위 폴더를 찾아 개별 EPUB을 만들며, 중첩된 폴더 구조는 출력 위치에도 유지합니다.
 
 ## OCR backend 설치
 

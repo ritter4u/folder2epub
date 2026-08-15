@@ -51,6 +51,8 @@ def _paddle_language(language: str) -> str:
 
 def _result_text(results: Any) -> str:
     """Extract PaddleOCR 3.x prediction text while tolerating result wrappers."""
+    if isinstance(results, dict):
+        results = [results]
     chunks: list[str] = []
     for result in results or []:
         data = getattr(result, "json", result)
@@ -68,4 +70,3 @@ def _result_text(results: Any) -> str:
             texts = [texts]
         chunks.extend(str(text).strip() for text in texts if str(text).strip())
     return "\n".join(chunks).strip()
-
