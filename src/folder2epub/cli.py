@@ -9,14 +9,23 @@ from rich.progress import track
 
 from .epub_builder import build_epub
 from .images import find_images
+from .i18n import I18n, raw_resource_dir, raw_ui_language
 from .models import Page
 from .ocr import OCRError, SUPPORTED_ENGINES, create_ocr_backend, ocr_image
 
 app = typer.Typer(
     add_completion=False,
+    add_help_option=False,
     help="이미지 폴더를 EPUB으로 변환하고 선택적으로 OCR을 실행합니다.",
 )
 console = Console()
+
+
+def _show_help(_context: typer.Context, _parameter: typer.CallbackParam, value: bool) -> None:
+    if value:
+        translator = I18n(raw_ui_language(), raw_resource_dir())
+        console.print(translator.get("help_text"))
+        raise typer.Exit()
 
 
 def _default_epub_language(ocr_lang: str) -> str:
@@ -44,6 +53,18 @@ def main(
             help="페이지 이미지가 들어 있는 폴더",
         ),
     ],
+    ui_lang: Annotated[
+        str,
+        typer.Option("--ui-lang", help="CLI 메시지 언어: ko | en"),
+    ] = "ko",
+    locale_dir: Annotated[
+        Path | None,
+        typer.Option("--locale-dir", help="외부 i18n 리소스 디렉터리"),
+    ] = None,
+    show_help: Annotated[
+        bool,
+        typer.Option("--help", is_eager=True, callback=_show_help),
+    ] = False,
     output: Annotated[
         Path | None,
         typer.Option("--output", "-o", help="출력 EPUB 경로"),
@@ -101,9 +122,11 @@ def main(
         typer.Option("--force-ocr", help="OCR 캐시를 무시하고 다시 인식"),
     ] = False,
 ):
+    translator = I18n(ui_lang, locale_dir)
+
     if recursive:
         if output is not None:
-            console.print("[red]--recursive에서는 --output 대신 --output-dir을 사용하세요.[/red]")
+            console.print(f"[red]{translator.get('recursive_output_error')}[/red]")
             raise typer.Exit(2)
 
         candidates = [folder]
@@ -115,7 +138,7 @@ def main(
         )
         book_folders = [path for path in candidates if find_images(path)]
         if not book_folders:
-            console.print(f"[red]이미지 폴더를 찾을 수 없습니다: {folder}[/red]")
+            console.print(f"[red]{translator.get('no_book_folders', folder=folder)}[/red]")
             raise typer.Exit(1)
 
         target_root = output_dir.expanduser().resolve() if output_dir else folder.parent
@@ -137,27 +160,29 @@ def main(
                 epub_language=epub_language,
                 cover=cover,
                 force_ocr=force_ocr,
+                ui_lang=ui_lang,
+                locale_dir=locale_dir,
             )
         return
 
     if mode not in {"hybrid", "text", "image"}:
-        console.print("[red]--mode는 hybrid, text, image 중 하나여야 합니다.[/red]")
+        console.print(f"[red]{translator.get('mode_error')}[/red]")
         raise typer.Exit(2)
 
     ocr_engine = ocr_engine.lower()
     if ocr_engine not in SUPPORTED_ENGINES:
         console.print(
-            "[red]--ocr-engine은 paddle, manga, tesseract 중 하나여야 합니다.[/red]"
+            f"[red]{translator.get('engine_error')}[/red]"
         )
         raise typer.Exit(2)
 
     images = find_images(folder)
     if not images:
-        console.print(f"[red]이미지를 찾을 수 없습니다: {folder}[/red]")
+        console.print(f"[red]{translator.get('no_images', folder=folder)}[/red]")
         raise typer.Exit(1)
 
     if output is not None and output_dir is not None:
-        console.print("[red]--output과 --output-dir은 함께 사용할 수 없습니다.[/red]")
+        console.print(f"[red]{translator.get('output_conflict')}[/red]")
         raise typer.Exit(2)
 
     if output is None:
@@ -184,12 +209,11 @@ def main(
             raise typer.Exit(1)
 
     console.print(
-        f"[bold]folder2epub[/bold]  "
-        f"{len(images)} pages → {output.name}"
+        f"[bold]{translator.get('header', pages=len(images), output=output.name)}[/bold]"
     )
 
     for idx, image in enumerate(
-        track(images, description="페이지 처리 중..."),
+        track(images, description=translator.get("progress")),
         start=1,
     ):
         text = ""
@@ -205,7 +229,7 @@ def main(
                     backend=backend,
                 )
             except OCRError as exc:
-                console.print(f"\n[red]{exc}[/red]")
+                console.print(f"\n[red]{translator.get('ocr_failed', error=exc)}[/red]")
                 raise typer.Exit(1)
 
         pages.append(Page(index=idx, image_path=image, text=text))
@@ -223,9 +247,9 @@ def main(
         cover=cover,
     )
 
-    console.print(f"[green]완료:[/green] {output}")
+    console.print(f"[green]{translator.get('complete', output=output)}[/green]")
     if ocr:
-        console.print(f"[dim]OCR cache: {cache_dir}[/dim]")
+        console.print(f"[dim]{translator.get('cache', cache=cache_dir)}[/dim]")
 
 
 if __name__ == "__main__":

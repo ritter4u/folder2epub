@@ -102,7 +102,32 @@ Tesseract is retained for compatibility. It uses the system executable and insta
 
 `--output` and `--output-dir` are mutually exclusive. Recursive mode uses `--output-dir`. The image directory name becomes the EPUB filename, while nested directory paths are preserved.
 
-## 8. OCR cache
+## 8. Internationalized messages and external resources
+
+CLI messages and `--help` content are loaded from JSON resources outside the executable code.
+
+```text
+resources/i18n/ko.json
+resources/i18n/en.json
+```
+
+Key options:
+
+- `--ui-lang`: language for CLI messages and help
+- `--locale-dir`: external i18n resource directory
+- `--help`: print help text from the selected external resource
+
+`--lang` selects the OCR recognition language, while `--ui-lang` selects the user-interface language. The default UI language is `ko`. If the selected resource is missing, the loader falls back to `en.json`. New languages are added as `<language>.json` files with the existing keys under `resources/i18n/` or a custom `--locale-dir`.
+
+The application uses the external `help_text` resource instead of Typer's automatic help output, so these commands are supported:
+
+```bash
+folder2epub --help
+folder2epub --ui-lang en --help
+folder2epub --ui-lang fr --locale-dir ./my-i18n --help
+```
+
+## 9. OCR cache
 
 The cache is stored in `.folder2epub-cache/` inside each book directory. The cache key includes:
 
@@ -121,7 +146,7 @@ Examples:
 
 Changing the engine or its options cannot collide with an older result. Completed pages can be reused after an interrupted OCR run.
 
-## 9. EPUB output
+## 10. EPUB output
 
 - `image`: display the original scanned image only
 - `text`: text-centered OCR output
@@ -131,7 +156,7 @@ When OCR is disabled, the effective mode is automatically `image`. In hybrid mod
 
 Supported formats are `jpg`, `jpeg`, `png`, `webp`, `tif`, `tiff`, and `bmp`; filenames use natural sorting.
 
-## 10. Dependencies and verification
+## 11. Dependencies and verification
 
 ```bash
 uv venv
@@ -146,10 +171,11 @@ uv run pytest
 - `[tesseract]`: no additional Python package; install it with Homebrew on macOS
 - `[all]`: PaddleOCR and manga-ocr
 
-## 11. Limitations and next steps
+## 12. Limitations and next steps
 
 - Recognition quality for vertical text and furigana depends on the source scan and OCR model.
 - Deskewing, margin removal, and border removal are intentionally minimal.
 - Model downloads and Python/PyTorch/PaddlePaddle compatibility depend on the execution environment.
 - A `Preprocessor` Protocol can be added before OCR backends in a future iteration.
 - New engines such as Apple Vision can be added by implementing `OCRBackend` and registering the engine in the factory.
+- Translation quality and resource-key validation should be automated for additional UI languages.

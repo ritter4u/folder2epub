@@ -102,7 +102,32 @@ pip install manga-ocr
 
 `--output`과 `--output-dir`은 함께 사용할 수 없다. recursive 모드에서는 `--output-dir`을 사용한다. 이미지 폴더명은 EPUB 파일명이 되며 nested 폴더 경로는 보존된다.
 
-## 8. OCR cache
+## 8. 다국어 메시지와 외부 리소스
+
+CLI 메시지와 `--help` 내용은 실행 코드와 분리된 JSON 리소스에서 읽는다.
+
+```text
+resources/i18n/ko.json
+resources/i18n/en.json
+```
+
+주요 옵션:
+
+- `--ui-lang`: CLI 메시지와 도움말 언어
+- `--locale-dir`: 외부 i18n 리소스 디렉터리
+- `--help`: 선택한 언어의 외부 help 문구 출력
+
+`--lang`은 OCR 인식 언어이고 `--ui-lang`은 사용자 interface 언어다. 기본 UI 언어는 `ko`다. `--ui-lang`으로 지정한 JSON이 없으면 `en.json`으로 fallback한다. 새 언어는 기존 key를 유지한 `<language>.json` 파일을 `resources/i18n/` 또는 `--locale-dir` 경로에 추가한다.
+
+help는 Typer의 기본 자동 help 대신 외부 resource의 `help_text`를 사용한다. 따라서 다음 명령이 가능하다.
+
+```bash
+folder2epub --help
+folder2epub --ui-lang en --help
+folder2epub --ui-lang fr --locale-dir ./my-i18n --help
+```
+
+## 9. OCR cache
 
 cache 위치는 각 책 폴더의 `.folder2epub-cache/`다. cache key에는 다음 정보가 포함된다.
 
@@ -121,7 +146,7 @@ cache 위치는 각 책 폴더의 `.folder2epub-cache/`다. cache key에는 다�
 
 engine이나 옵션이 바뀌면 기존 결과와 충돌하지 않는다. OCR이 중단되어도 완료된 페이지는 재사용할 수 있다.
 
-## 9. EPUB 출력
+## 10. EPUB 출력
 
 - `image`: 원본 스캔 이미지만 표시
 - `text`: OCR 텍스트 중심
@@ -131,7 +156,7 @@ OCR 없이 실행하면 자동으로 `image` 모드를 사용한다. hybrid 모�
 
 지원 형식은 `jpg`, `jpeg`, `png`, `webp`, `tif`, `tiff`, `bmp`이며 파일명은 자연 정렬한다.
 
-## 10. 의존성과 검증
+## 11. 의존성과 검증
 
 ```bash
 uv venv
@@ -146,10 +171,11 @@ uv run pytest
 - `[tesseract]`: 추가 Python package 없음; macOS에서는 Homebrew 설치 필요
 - `[all]`: PaddleOCR와 manga-ocr
 
-## 11. 제한사항과 다음 단계
+## 12. 제한사항과 다음 단계
 
 - 세로쓰기와 후리가나 품질은 원본 스캔과 OCR 모델에 좌우된다.
 - deskew, 여백 제거, 테두리 제거 같은 전처리는 최소화되어 있다.
 - 모델 다운로드와 Python/PyTorch/PaddlePaddle 호환성은 실행 환경의 영향을 받는다.
 - 향후 `Preprocessor` Protocol을 OCR backend 앞에 추가할 수 있다.
 - Apple Vision 등 새로운 engine은 `OCRBackend` 구현과 factory 등록으로 추가한다.
+- 추가 UI 언어의 번역 품질과 resource key 검증을 자동화한다.
