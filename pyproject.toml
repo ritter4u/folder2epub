@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "folder2epub"
+version = "0.1.0"
+description = "Build an EPUB from a folder of page images with optional, replaceable OCR backends."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Kris"}]
+dependencies = [
+  "EbookLib>=0.18",
+  "Pillow>=10.0",
+  "typer>=0.12",
+  "rich>=13.0",
+  "natsort>=8.4"
+]
+
+[project.optional-dependencies]
+paddle = [
+  "paddlepaddle>=3.0",
+  "paddleocr>=3.0",
+]
+manga = [
+  "manga-ocr>=0.1.14",
+]
+tesseract = []
+all = [
+  "paddlepaddle>=3.0",
+  "paddleocr>=3.0",
+  "manga-ocr>=0.1.14",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+folder2epub = "folder2epub.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/folder2epub"]
