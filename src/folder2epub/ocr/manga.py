@@ -17,7 +17,8 @@ class MangaOCRBackend:
         except ImportError as exc:
             raise OCRError(
                 "manga-ocr backend가 설치되어 있지 않습니다.\n"
-                "uv pip install -e '.[manga]'"
+                "pip install manga-ocr\n"
+                "(이 프로젝트에서는 `uv pip install -e '.[manga]'`도 사용할 수 있습니다.)"
             ) from exc
         try:
             self._ocr = MangaOcr()

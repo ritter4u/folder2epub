@@ -12,7 +12,7 @@ class TesseractOCRBackend:
     name = "tesseract"
 
     def __init__(self, language: str = "ja", options: dict[str, Any] | None = None):
-        self.language = language
+        self.language = language.replace("ja", "jpn")
         self.psm = int((options or {}).get("psm", 3))
         self.executable = shutil.which("tesseract")
         if not self.executable:
@@ -60,4 +60,3 @@ class TesseractOCRBackend:
         if proc.returncode != 0:
             raise OCRError(f"OCR 실패: {image.name}\n{proc.stderr.strip()}")
         return proc.stdout.replace("\x0c", "").strip()
-
