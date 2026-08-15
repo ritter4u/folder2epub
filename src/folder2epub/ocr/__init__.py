@@ -55,6 +55,7 @@ def ocr_image(
     force: bool = False,
     engine: str = "paddle",
     options: dict[str, Any] | None = None,
+    backend: OCRBackend | None = None,
 ) -> str:
     effective_options = {"psm": psm, **(options or {})}
     key = cache_key(image, engine, lang, effective_options)
@@ -63,7 +64,7 @@ def ocr_image(
     if cache_file.exists() and not force:
         return cache_file.read_text(encoding="utf-8")
 
-    backend = create_ocr_backend(engine, lang, effective_options)
+    backend = backend or create_ocr_backend(engine, lang, effective_options)
     cache_dir.mkdir(parents=True, exist_ok=True)
     text = backend.recognize(image)
     cache_file.write_text(text, encoding="utf-8")

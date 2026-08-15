@@ -10,7 +10,7 @@ from rich.progress import track
 from .epub_builder import build_epub
 from .images import find_images
 from .models import Page
-from .ocr import OCRError, SUPPORTED_ENGINES, ocr_image
+from .ocr import OCRError, SUPPORTED_ENGINES, create_ocr_backend, ocr_image
 
 app = typer.Typer(
     add_completion=False,
@@ -48,6 +48,14 @@ def main(
         Path | None,
         typer.Option("--output", "-o", help="출력 EPUB 경로"),
     ] = None,
+    output_dir: Annotated[
+        Path | None,
+        typer.Option("--output-dir", help="출력 EPUB을 저장할 디렉터리"),
+    ] = None,
+    recursive: Annotated[
+        bool,
+        typer.Option("--recursive", help="하위 폴더의 이미지 폴더도 각각 EPUB으로 변환"),
+    ] = False,
     ocr: Annotated[
         bool,
         typer.Option("--ocr/--no-ocr", help="OCR 실행 (기본 engine: paddle)"),
@@ -93,6 +101,45 @@ def main(
         typer.Option("--force-ocr", help="OCR 캐시를 무시하고 다시 인식"),
     ] = False,
 ):
+    if recursive:
+        if output is not None:
+            console.print("[red]--recursive에서는 --output 대신 --output-dir을 사용하세요.[/red]")
+            raise typer.Exit(2)
+
+        candidates = [folder]
+        candidates.extend(
+            sorted(
+                (path for path in folder.rglob("*") if path.is_dir()),
+                key=lambda path: str(path).lower(),
+            )
+        )
+        book_folders = [path for path in candidates if find_images(path)]
+        if not book_folders:
+            console.print(f"[red]이미지 폴더를 찾을 수 없습니다: {folder}[/red]")
+            raise typer.Exit(1)
+
+        target_root = output_dir.expanduser().resolve() if output_dir else folder.parent
+        for book_folder in book_folders:
+            relative = book_folder.relative_to(folder)
+            target = target_root / relative.parent / f"{book_folder.name}.epub"
+            main(
+                book_folder,
+                output=target,
+                output_dir=None,
+                recursive=False,
+                ocr=ocr,
+                lang=lang,
+                ocr_engine=ocr_engine,
+                psm=psm,
+                mode=mode,
+                title=title,
+                author=author,
+                epub_language=epub_language,
+                cover=cover,
+                force_ocr=force_ocr,
+            )
+        return
+
     if mode not in {"hybrid", "text", "image"}:
         console.print("[red]--mode는 hybrid, text, image 중 하나여야 합니다.[/red]")
         raise typer.Exit(2)
@@ -109,8 +156,13 @@ def main(
         console.print(f"[red]이미지를 찾을 수 없습니다: {folder}[/red]")
         raise typer.Exit(1)
 
+    if output is not None and output_dir is not None:
+        console.print("[red]--output과 --output-dir은 함께 사용할 수 없습니다.[/red]")
+        raise typer.Exit(2)
+
     if output is None:
-        output = folder.parent / f"{folder.name}.epub"
+        target_dir = output_dir.expanduser().resolve() if output_dir else folder.parent
+        output = target_dir / f"{folder.name}.epub"
     output = output.expanduser().resolve()
 
     book_title = title or folder.name
@@ -119,6 +171,17 @@ def main(
 
     cache_dir = folder / ".folder2epub-cache"
     pages: list[Page] = []
+    backend = None
+    if ocr:
+        try:
+            backend = create_ocr_backend(
+                engine=ocr_engine,
+                language=lang,
+                options={"psm": psm},
+            )
+        except OCRError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(1)
 
     console.print(
         f"[bold]folder2epub[/bold]  "
@@ -139,6 +202,7 @@ def main(
                     psm=psm,
                     force=force_ocr,
                     engine=ocr_engine,
+                    backend=backend,
                 )
             except OCRError as exc:
                 console.print(f"\n[red]{exc}[/red]")
