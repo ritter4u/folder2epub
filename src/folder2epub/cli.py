@@ -11,7 +11,13 @@ from .epub_builder import build_epub
 from .images import find_images
 from .i18n import I18n, raw_resource_dir, raw_ui_language
 from .models import Page
-from .ocr import OCRError, SUPPORTED_ENGINES, create_ocr_backend, ocr_images
+from .ocr import (
+    OCRError,
+    SUPPORTED_ENGINES,
+    create_ocr_backend,
+    ocr_images,
+    resolve_ocr_engine,
+)
 
 app = typer.Typer(
     add_completion=False,
@@ -79,7 +85,7 @@ def main(
     ] = False,
     ocr: Annotated[
         bool,
-        typer.Option("--ocr/--no-ocr", help="OCR 실행 (기본 engine: paddle)"),
+        typer.Option("--ocr/--no-ocr", help="OCR 실행 (기본 engine: 플랫폼 자동 선택)"),
     ] = False,
     lang: Annotated[
         str,
@@ -89,13 +95,17 @@ def main(
         str,
         typer.Option(
             "--ocr-engine",
-            help="OCR engine: mlx | paddle | manga | tesseract",
+            help="OCR engine: auto | mlx | paddle | manga | tesseract",
             case_sensitive=False,
         ),
-    ] = "mlx",
+    ] = "auto",
     ocr_model: Annotated[
         str,
         typer.Option("--ocr-model", help="OCR model preset. MLX: auto | mobile | server"),
+    ] = "auto",
+    ocr_device: Annotated[
+        str,
+        typer.Option("--ocr-device", help="PaddleOCR 장치: auto | cpu | gpu"),
     ] = "auto",
     psm: Annotated[
         int,
@@ -158,6 +168,7 @@ def main(
                 lang=lang,
                 ocr_engine=ocr_engine,
                 ocr_model=ocr_model,
+                ocr_device=ocr_device,
                 psm=psm,
                 mode=mode,
                 title=title,
@@ -180,6 +191,11 @@ def main(
             f"[red]{translator.get('engine_error')}[/red]"
         )
         raise typer.Exit(2)
+    ocr_device = ocr_device.lower()
+    if ocr_device not in {"auto", "cpu", "gpu"}:
+        console.print("[red]--ocr-device는 auto, cpu, gpu 중 하나여야 합니다.[/red]")
+        raise typer.Exit(2)
+    resolved_engine = resolve_ocr_engine(ocr_engine)
 
     images = find_images(folder)
     if not images:
@@ -205,9 +221,9 @@ def main(
     if ocr:
         try:
             backend = create_ocr_backend(
-                engine=ocr_engine,
+                engine=resolved_engine,
                 language=lang,
-                options={"psm": psm, "model": ocr_model},
+                options={"psm": psm, "model": ocr_model, "device": ocr_device},
             )
         except OCRError as exc:
             console.print(f"[red]{exc}[/red]")
@@ -226,8 +242,8 @@ def main(
                 lang=lang,
                 psm=psm,
                 force=force_ocr,
-                engine=ocr_engine,
-                options={"model": ocr_model},
+                engine=resolved_engine,
+                options={"model": ocr_model, "device": ocr_device},
                 backend=backend,
             )
         except OCRError as exc:

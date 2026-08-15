@@ -23,11 +23,17 @@ class PaddleOCRBackend:
         try:
             # PaddleOCR 3.x pipeline API. Text-line orientation helps with
             # rotated/vertical Japanese scans without requiring preprocessing.
+            paddle_options: dict[str, Any] = {
+                "lang": self.language,
+                "use_doc_orientation_classify": False,
+                "use_doc_unwarping": False,
+                "use_textline_orientation": True,
+            }
+            device = self.options.get("device", "auto")
+            if device != "auto":
+                paddle_options["device"] = device
             self._ocr = PaddleOCR(
-                lang=self.language,
-                use_doc_orientation_classify=False,
-                use_doc_unwarping=False,
-                use_textline_orientation=True,
+                **paddle_options,
             )
         except Exception as exc:
             raise OCRError(f"PaddleOCR 초기화에 실패했습니다: {exc}") from exc
