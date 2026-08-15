@@ -2,7 +2,13 @@ from pathlib import Path
 
 import pytest
 
-from folder2epub.ocr import OCRError, cache_key, create_ocr_backend, ocr_image
+from folder2epub.ocr import (
+    OCRError,
+    cache_key,
+    create_ocr_backend,
+    ocr_image,
+    ocr_images,
+)
 
 
 def test_ocr_backend_factory_rejects_unknown_engine():
@@ -57,3 +63,33 @@ def test_mock_backend_uses_separate_cache_file(tmp_path: Path, monkeypatch):
     assert ocr_image(image, cache_dir, engine="mock") == "recognized: 001.jpg"
     files = list(cache_dir.glob("001.mock-ja-*.txt"))
     assert len(files) == 1
+
+
+def test_mock_batch_backend_uses_one_call_and_page_caches(tmp_path: Path):
+    images = [tmp_path / "001.jpg", tmp_path / "002.jpg"]
+    for image in images:
+        image.write_bytes(b"image")
+
+    class MockBatchBackend:
+        name = "mock"
+
+        def __init__(self):
+            self.calls = 0
+
+        def recognize_many(self, paths: list[Path]) -> dict[Path, str]:
+            self.calls += 1
+            return {path.resolve(): f"recognized: {path.name}" for path in paths}
+
+        def recognize(self, path: Path) -> str:
+            raise AssertionError("batch backend should not use recognize()")
+
+    backend = MockBatchBackend()
+    cache_dir = tmp_path / ".folder2epub-cache"
+
+    assert ocr_images(images, cache_dir, engine="mock", backend=backend) == {
+        image: f"recognized: {image.name}" for image in images
+    }
+    assert backend.calls == 1
+    assert ocr_images(images, cache_dir, engine="mock", backend=backend)
+    assert backend.calls == 1
+    assert len(list(cache_dir.glob("*.mock-ja-*.txt"))) == 2

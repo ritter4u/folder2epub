@@ -11,7 +11,7 @@ from .epub_builder import build_epub
 from .images import find_images
 from .i18n import I18n, raw_resource_dir, raw_ui_language
 from .models import Page
-from .ocr import OCRError, SUPPORTED_ENGINES, create_ocr_backend, ocr_image
+from .ocr import OCRError, SUPPORTED_ENGINES, create_ocr_backend, ocr_images
 
 app = typer.Typer(
     add_completion=False,
@@ -217,27 +217,28 @@ def main(
         f"[bold]{translator.get('header', pages=len(images), output=output.name)}[/bold]"
     )
 
+    texts_by_image: dict[Path, str] = {}
+    if ocr:
+        try:
+            texts_by_image = ocr_images(
+                images=images,
+                cache_dir=cache_dir,
+                lang=lang,
+                psm=psm,
+                force=force_ocr,
+                engine=ocr_engine,
+                options={"model": ocr_model},
+                backend=backend,
+            )
+        except OCRError as exc:
+            console.print(f"\n[red]{translator.get('ocr_failed', error=exc)}[/red]")
+            raise typer.Exit(1)
+
     for idx, image in enumerate(
         track(images, description=translator.get("progress")),
         start=1,
     ):
-        text = ""
-        if ocr:
-            try:
-                text = ocr_image(
-                    image=image,
-                    cache_dir=cache_dir,
-                    lang=lang,
-                    psm=psm,
-                    force=force_ocr,
-                    engine=ocr_engine,
-                    options={"psm": psm, "model": ocr_model},
-                    backend=backend,
-                )
-            except OCRError as exc:
-                console.print(f"\n[red]{translator.get('ocr_failed', error=exc)}[/red]")
-                raise typer.Exit(1)
-
+        text = texts_by_image.get(image, "")
         pages.append(Page(index=idx, image_path=image, text=text))
 
     if cover is not None:

@@ -28,6 +28,15 @@ class MLXOCRBackend:
         self.executable = str(Path(self.executable).resolve())
 
     def recognize(self, image: Path) -> str:
+        result = self._run([str(image.resolve())])
+        return _extract_text(result[0])
+
+    def recognize_many(self, images: list[Path]) -> dict[Path, str]:
+        """Run one MLX process for all pages in a book."""
+        stdout, _ = self._run([str(image.resolve()) for image in images])
+        return _extract_batch_text(stdout)
+
+    def _run(self, image_paths: list[str]) -> tuple[str, list[str]]:
         command = [
             self.executable,
             "--json",
@@ -35,7 +44,7 @@ class MLXOCRBackend:
             "text",
             "--lang",
             _model_for_language(self.language, self.model),
-            str(image.resolve()),
+            *image_paths,
         ]
         # shell=False and an argv list ensure paths/model values are arguments,
         # never shell syntax. The executable is resolved from the fixed
@@ -64,10 +73,8 @@ class MLXOCRBackend:
         if process.returncode != 0:
             snippet = "\n".join(stderr_lines[:10]).strip()
             details = f"\nstderr:\n{snippet}" if snippet else ""
-            raise OCRError(
-                f"MLX OCR 실패 (반환 코드 {process.returncode}): {image.name}{details}"
-            )
-        return _extract_text(stdout)
+            raise OCRError(f"MLX OCR 실패 (반환 코드 {process.returncode}){details}")
+        return stdout, stderr_lines
 
 
 def _model_for_language(language: str, model: str) -> str:
@@ -92,3 +99,23 @@ def _extract_text(output: str) -> str:
                 if isinstance(item, dict) and item.get("text")
             )
     return "\n".join(texts).strip()
+
+
+def _extract_batch_text(output: str) -> dict[Path, str]:
+    texts_by_image: dict[Path, list[str]] = {}
+    for line in output.splitlines():
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(value, dict) or not value.get("file"):
+            continue
+        image = Path(str(value["file"])).expanduser().resolve()
+        results = value.get("results", [])
+        texts = [
+            str(item["text"]).strip()
+            for item in results
+            if isinstance(item, dict) and item.get("text")
+        ]
+        texts_by_image[image] = texts
+    return {image: "\n".join(texts).strip() for image, texts in texts_by_image.items()}
