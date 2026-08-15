@@ -24,6 +24,8 @@ folder2epub ~/Books/my-book \
 
 `uv pip install -e ".[all]"`을 사용하면 모든 Python OCR backend를 설치할 수 있습니다. PaddleOCR는 첫 실행 시 모델을 다운로드할 수 있으며, CPU에서도 동작합니다. Apple Silicon에서 PaddlePaddle wheel 설치가 실패하면 현재 Python 버전에 맞는 PaddlePaddle 배포 지원 여부를 확인해야 합니다.
 
+PaddleOCR 모델 다운로드가 끝나면 이후 실행에서는 로컬 캐시를 사용합니다. OCR을 중단한 경우 같은 명령을 다시 실행하면 이미 저장된 페이지 cache를 재사용합니다.
+
 ## 사용법
 
 이미지만 EPUB으로 만들기:
@@ -41,13 +43,70 @@ folder2epub book --ocr --ocr-engine manga --lang ja
 folder2epub book --ocr --ocr-engine tesseract --lang jpn
 ```
 
+### 영문 OCR 리소스 사용
+
+PaddleOCR에서 영어 리소스를 사용하려면 `--lang en`을 지정합니다. EPUB metadata도 영어로 맞추려면 `--epub-language en`을 함께 사용합니다.
+
+```bash
+folder2epub ~/Books/english-book \
+    --ocr \
+    --ocr-engine paddle \
+    --lang en \
+    --epub-language en
+```
+
+Tesseract를 사용할 때는 Tesseract 언어 코드인 `eng`를 사용합니다.
+
+```bash
+brew install tesseract
+brew install tesseract-lang
+folder2epub ~/Books/english-book \
+    --ocr \
+    --ocr-engine tesseract \
+    --lang eng \
+    --epub-language en
+```
+
+`manga-ocr` backend는 일본어 전용이므로 영문 OCR에는 사용할 수 없습니다. 현재 CLI 도움말과 오류 메시지는 한국어이며, `--lang`은 OCR 인식 언어를 지정하는 옵션입니다.
+
 도움말:
 
 ```bash
 folder2epub --help
+folder2epub --ui-lang en --help
 ```
 
-주요 옵션은 `--ocr`, `--ocr-engine paddle|manga|tesseract`, `--lang`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
+주요 옵션은 `--ocr`, `--ocr-engine paddle|manga|tesseract`, `--lang`, `--ui-lang ko|en`, `--locale-dir`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
+
+## 다국어 메시지와 외부 리소스
+
+CLI 메시지와 `--help` 내용은 본체 코드에 하드코딩하지 않고 외부 JSON 리소스에서 읽습니다.
+
+기본 리소스:
+
+```text
+resources/i18n/ko.json
+resources/i18n/en.json
+```
+
+기본 언어는 `ko`이며 영어 메시지와 도움말은 다음처럼 사용할 수 있습니다.
+
+```bash
+folder2epub --ui-lang en --help
+folder2epub ./book --ui-lang en --ocr --lang en
+```
+
+별도 리소스 디렉터리를 사용하려면 `--locale-dir`를 지정합니다.
+
+```bash
+folder2epub \
+  ./book \
+  --ui-lang en \
+  --locale-dir /path/to/my-i18n \
+  --help
+```
+
+리소스 파일명은 언어 코드와 일치해야 합니다. 예를 들어 `fr.json`을 추가하면 `--ui-lang fr`로 선택할 수 있습니다. 번역되지 않은 언어는 영어 리소스로 fallback합니다. `--lang`은 OCR 인식 언어이고 `--ui-lang`은 CLI 메시지 언어이므로 서로 다른 옵션입니다.
 
 정확한 파일명을 지정하려면 `--output`을 사용합니다.
 
@@ -69,6 +128,32 @@ folder2epub ~/Books --recursive --output-dir ~/Books/epub
 ```
 
 이미지가 있는 모든 하위 폴더를 찾아 개별 EPUB을 만들며, 중첩된 폴더 구조는 출력 위치에도 유지합니다.
+
+## Recursive batch 처리
+
+이미지가 있는 하위 폴더를 각각 EPUB으로 만들 수 있습니다.
+
+```text
+Books/
+├── Book A/
+│   ├── 001.jpg
+│   └── 002.jpg
+└── Extra/Book B/
+    └── 001.png
+```
+
+```bash
+folder2epub ./Books --recursive --output-dir ./epub
+```
+
+결과:
+
+```text
+epub/Book A.epub
+epub/Extra/Book B.epub
+```
+
+이미지가 포함된 폴더명은 EPUB 파일명이 되고, 중첩된 상대 경로는 출력 위치에도 유지됩니다. `--output`과 `--output-dir`은 함께 사용할 수 없습니다.
 
 ## OCR backend 설치
 
@@ -117,5 +202,100 @@ source .venv/bin/activate
 uv pip install -e ".[paddle]"
 uv pip install pytest
 python -m compileall src
-pytest
+uv run pytest
 ```
+
+## 프로젝트 구조
+
+```text
+src/folder2epub/
+├── cli.py             # CLI와 단일/recursive 실행
+├── epub_builder.py    # image/text/hybrid EPUB 생성
+├── images.py          # 지원 확장자와 자연 정렬
+├── models.py          # Page 모델
+└── ocr/
+    ├── base.py        # OCRBackend Protocol
+    ├── paddle.py      # PaddleOCR backend
+    ├── manga.py       # 선택적 manga-ocr backend
+    └── tesseract.py   # 호환성용 Tesseract backend
+```
+
+외부 메시지 리소스는 `resources/i18n/`에 둡니다. 새 언어를 추가할 때는 기존 JSON key를 유지한 `<language>.json` 파일을 추가합니다.
+
+자세한 설계는 [`doc/design.ko.md`](doc/design.ko.md)와 [`doc/design.en.md`](doc/design.en.md)를 참고하세요.
+
+---
+
+# English
+
+`folder2epub` converts folders of page images into EPUB files. PaddleOCR is the default OCR backend and Japanese (`ja`) is the default OCR language. `manga-ocr` and Tesseract are optional backends.
+
+## Quick start
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[paddle]"
+folder2epub ~/Books/my-book --ocr
+```
+
+Create an image-only EPUB:
+
+```bash
+folder2epub ~/Books/my-book
+```
+
+Use English OCR resources:
+
+```bash
+folder2epub ~/Books/english-book \
+  --ocr \
+  --ocr-engine paddle \
+  --lang en \
+  --epub-language en
+```
+
+## Recursive batch mode
+
+Every directory containing supported images becomes a separate EPUB. The image directory name becomes the EPUB filename, and nested paths are preserved.
+
+```bash
+folder2epub ./Books --recursive --output-dir ./epub
+```
+
+For example, `Books/Extra/Book B/*.jpg` becomes `epub/Extra/Book B.epub`.
+
+## Internationalized messages
+
+CLI messages and `--help` are loaded from external JSON resources:
+
+```text
+resources/i18n/ko.json
+resources/i18n/en.json
+```
+
+Use English messages and help:
+
+```bash
+folder2epub --ui-lang en --help
+```
+
+Use a custom resource directory:
+
+```bash
+folder2epub ./book \
+  --ui-lang en \
+  --locale-dir ./my-i18n \
+  --help
+```
+
+Add another language by creating `<language>.json` with the existing resource keys. If the selected resource is missing, the CLI falls back to English.
+
+## Development
+
+```bash
+python -m compileall src
+uv run pytest
+```
+
+See [`doc/design.en.md`](doc/design.en.md) for the full English design document.
