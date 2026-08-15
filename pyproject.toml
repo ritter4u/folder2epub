@@ -23,13 +23,12 @@ paddle = [
   "paddlepaddle>=3.0",
   "paddleocr>=3.0",
 ]
+mlx = []
 manga = [
   "manga-ocr>=0.1.14",
 ]
 tesseract = []
 all = [
-  "paddlepaddle>=3.0",
-  "paddleocr>=3.0",
   "manga-ocr>=0.1.14",
 ]
 

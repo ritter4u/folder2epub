@@ -4,7 +4,7 @@
 
 `folder2epub` is a Python 3.10+ CLI that converts image folders into EPUB files. Its primary target is scanned Japanese books, so OCR is isolated behind replaceable backends.
 
-PaddleOCR is the default OCR engine and `ja` is the default language. `manga-ocr` and the existing Tesseract implementation are optional backends.
+MLX OCR is the default backend on Apple Silicon and `ja` is the default language. PaddleOCR, `manga-ocr`, and the existing Tesseract implementation are optional backends.
 
 ## 2. Execution model
 
@@ -45,6 +45,7 @@ Main files:
 - `epub_builder.py`: EPUB images, XHTML, CSS, TOC, and spine
 - `ocr/base.py`: `OCRBackend` Protocol and `OCRError`
 - `ocr/__init__.py`: factory and cache orchestration
+- `ocr/mlx.py`: `mlx-ocr` subprocess backend
 - `ocr/paddle.py`: PaddleOCR 3.x backend
 - `ocr/manga.py`: optional manga-ocr backend
 - `ocr/tesseract.py`: compatibility subprocess backend
@@ -63,17 +64,39 @@ class OCRBackend(Protocol):
 
 The CLI does not import individual OCR libraries directly. `create_ocr_backend(engine, language, options)` selects the engine, while library imports are deferred until backend initialization.
 
-A backend is initialized once per book and reused for all pages.
+A backend is initialized once per engine/language/options combination in a CLI process and reused across all books and pages. Recursive batches therefore do not reload PaddleOCR models for every folder.
 
-## 5. PaddleOCR
+## 5. MLX OCR
+
+MLX is Apple's machine-learning framework for Apple Silicon. It uses unified memory and Metal GPU to run models locally on a Mac. In this project, `mlx-ppocr` is a separate port of PaddleOCR's PP-OCR family for the MLX runtime.
+
+MLX weights and standard PaddleOCR weights use different runtimes and file formats, so they are not directly interchangeable. Both implementations are selected as separate engines behind the same `OCRBackend` contract.
+
+On Apple Silicon, `mlx-ocr` is the default backend. The CLI invokes the `mlx_ppocr.MLXOCR`-based command as a subprocess; models are selected with `--ocr-model`.
+
+- `auto`: select a preset from the language
+- `mobile`: Japanese and multilingual mobile model
+- `server`: accuracy-oriented server model
+
+The first run may download and convert MLX weights. stderr progress is forwarded to the terminal while JSON stdout is parsed as OCR output.
+
+Install:
+
+```bash
+uv tool install mlx-ppocr
+```
+
+The target environment is Apple Silicon M1/M2/M3/M4 with Metal available. Headless environments without a Metal device cannot run actual inference.
+
+## 6. PaddleOCR compatibility backend
 
 The implementation uses the PaddleOCR 3.x `PaddleOCR(...).predict(...)` API. The language values `ja`, `jpn`, and `jpn_vert` map to PaddleOCR's `japan` setting.
 
 Text-line orientation is enabled to help with horizontal Japanese text, vertical text, and mildly rotated pages. Recognition segments are joined with newlines in the order returned by PaddleOCR.
 
-Models may be downloaded on the first run, with CPU execution as the default target. Unit tests do not download or execute real OCR models.
+Paddle models are optional. Unit tests do not download or execute real OCR models.
 
-## 6. Optional backends
+## 7. Optional backends
 
 ### manga-ocr
 
@@ -88,10 +111,11 @@ pip install manga-ocr
 
 Tesseract is retained for compatibility. It uses the system executable and installed language data, and must be selected explicitly with `--ocr-engine tesseract`. The `--psm` option is passed to this backend.
 
-## 7. CLI and output rules
+## 8. CLI and output rules
 
 - `--ocr`: enable OCR
-- `--ocr-engine paddle|manga|tesseract`: select a backend
+- `--ocr-engine mlx|paddle|manga|tesseract`: select a backend
+- `--ocr-model auto|mobile|server`: select the MLX model preset
 - `--lang ja`: OCR language, default `ja`
 - `--recursive`: convert nested image directories into separate EPUBs
 - `--output`: exact output path for a single EPUB
@@ -102,7 +126,7 @@ Tesseract is retained for compatibility. It uses the system executable and insta
 
 `--output` and `--output-dir` are mutually exclusive. Recursive mode uses `--output-dir`. The image directory name becomes the EPUB filename, while nested directory paths are preserved.
 
-## 8. Internationalized messages and external resources
+## 9. Internationalized messages and external resources
 
 CLI messages and `--help` content are loaded from JSON resources outside the executable code.
 
@@ -127,7 +151,7 @@ folder2epub --ui-lang en --help
 folder2epub --ui-lang fr --locale-dir ./my-i18n --help
 ```
 
-## 9. OCR cache
+## 10. OCR cache
 
 The cache is stored in `.folder2epub-cache/` inside each book directory. The cache key includes:
 
@@ -146,7 +170,7 @@ Examples:
 
 Changing the engine or its options cannot collide with an older result. Completed pages can be reused after an interrupted OCR run.
 
-## 10. EPUB output
+## 11. EPUB output
 
 - `image`: display the original scanned image only
 - `text`: text-centered OCR output
@@ -156,22 +180,24 @@ When OCR is disabled, the effective mode is automatically `image`. In hybrid mod
 
 Supported formats are `jpg`, `jpeg`, `png`, `webp`, `tif`, `tiff`, and `bmp`; filenames use natural sorting.
 
-## 11. Dependencies and verification
+## 12. Dependencies and verification
 
 ```bash
 uv venv
 source .venv/bin/activate
-uv pip install -e ".[paddle]"
+uv tool install mlx-ppocr
+uv pip install -e .
 python -m compileall src
 uv run pytest
 ```
 
-- `[paddle]`: `paddlepaddle`, `paddleocr`
+- `[mlx]`: external `mlx-ppocr` tool
+- `[paddle]`: `paddlepaddle`, `paddleocr` compatibility backend
 - `[manga]`: `manga-ocr`
 - `[tesseract]`: no additional Python package; install it with Homebrew on macOS
 - `[all]`: PaddleOCR and manga-ocr
 
-## 12. Limitations and next steps
+## 13. Limitations and next steps
 
 - Recognition quality for vertical text and furigana depends on the source scan and OCR model.
 - Deskewing, margin removal, and border removal are intentionally minimal.

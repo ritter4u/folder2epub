@@ -3,15 +3,18 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from .base import OCRError, OCRBackend
 from .manga import MangaOCRBackend
+from .mlx import MLXOCRBackend
 from .paddle import PaddleOCRBackend
 from .tesseract import TesseractOCRBackend
 
-SUPPORTED_ENGINES = ("paddle", "manga", "tesseract")
+SUPPORTED_ENGINES = ("mlx", "paddle", "manga", "tesseract")
+_BACKEND_CACHE: dict[tuple[str, str, str], OCRBackend] = {}
 
 
 def create_ocr_backend(
@@ -20,14 +23,25 @@ def create_ocr_backend(
     options: dict[str, Any] | None = None,
 ) -> OCRBackend:
     normalized = engine.strip().lower()
-    if normalized == "paddle":
-        return PaddleOCRBackend(language, options)
-    if normalized == "manga":
-        return MangaOCRBackend(language, options)
-    if normalized == "tesseract":
-        return TesseractOCRBackend(language, options)
-    supported = ", ".join(SUPPORTED_ENGINES)
-    raise OCRError(f"지원하지 않는 OCR engine입니다: {engine}. 사용 가능: {supported}")
+    cache_key_value = (normalized, language, _normalize_option(options or {}))
+    cached = _BACKEND_CACHE.get(cache_key_value)
+    if cached is not None:
+        return cached
+
+    if normalized == "mlx":
+        backend = MLXOCRBackend(language, options)
+    elif normalized == "paddle":
+        backend = PaddleOCRBackend(language, options)
+    elif normalized == "manga":
+        backend = MangaOCRBackend(language, options)
+    elif normalized == "tesseract":
+        backend = TesseractOCRBackend(language, options)
+    else:
+        supported = ", ".join(SUPPORTED_ENGINES)
+        raise OCRError(f"지원하지 않는 OCR engine입니다: {engine}. 사용 가능: {supported}")
+
+    _BACKEND_CACHE[cache_key_value] = backend
+    return backend
 
 
 def cache_key(
@@ -41,10 +55,30 @@ def cache_key(
         "image": {"path": str(image.resolve()), "size": stat.st_size, "mtime_ns": stat.st_mtime_ns},
         "engine": engine,
         "language": language,
-        "options": options or {},
+        "options": _normalize_option(options or {}),
     }
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
     return hashlib.sha1(encoded).hexdigest()[:12]
+
+
+def _normalize_option(value: Any) -> Any:
+    """Convert backend options into deterministic, hashable/JSON-safe values."""
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, Path):
+        return ("path", str(value))
+    if isinstance(value, Mapping):
+        return tuple(
+            sorted(
+                (str(key), _normalize_option(item))
+                for key, item in value.items()
+            )
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_normalize_option(item) for item in value)
+    if isinstance(value, (set, frozenset)):
+        return tuple(sorted((_normalize_option(item) for item in value), key=repr))
+    return ("object", type(value).__qualname__, repr(value))
 
 
 def ocr_image(
