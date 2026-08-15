@@ -64,7 +64,7 @@ class OCRBackend(Protocol):
 
 CLI는 개별 OCR 라이브러리를 직접 import하지 않는다. `create_ocr_backend(engine, language, options)`가 engine을 선택하고, 라이브러리 import는 backend 초기화 시점에 지연한다.
 
-backend는 CLI 프로세스에서 engine/language/options 조합별로 한 번만 초기화하고 모든 책과 페이지에서 재사용한다. 따라서 recursive batch에서도 폴더마다 PaddleOCR 모델을 다시 로드하지 않는다.
+backend는 CLI 프로세스에서 engine/language/options 조합별로 한 번만 초기화하고 모든 책과 페이지에서 재사용한다. MLX는 여기에 더해 한 책에서 cache에 없는 페이지들을 한 번의 `mlx-ocr` subprocess로 전달한다. 페이지별 cache 파일은 계속 유지하므로 중단 후 재실행하면 완료된 페이지는 건너뛴다.
 
 ## 5. MLX OCR
 
@@ -79,6 +79,8 @@ Apple Silicon에서는 `mlx-ocr`를 기본 backend로 사용한다. `mlx_ppocr.M
 - `server`: 정확도 우선 server 모델
 
 첫 실행 시 MLX weight 다운로드·변환이 발생할 수 있다. stderr 진행 로그는 사용자 터미널에 전달하고 JSON stdout만 OCR 결과 파싱에 사용한다.
+
+`recognize_many()`가 반환하는 페이지별 JSON 결과를 개별 cache 파일로 저장한다. 모든 페이지가 cache에 있으면 MLX subprocess를 실행하지 않는다.
 
 설치:
 

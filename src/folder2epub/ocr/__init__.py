@@ -14,7 +14,7 @@ from .paddle import PaddleOCRBackend
 from .tesseract import TesseractOCRBackend
 
 SUPPORTED_ENGINES = ("mlx", "paddle", "manga", "tesseract")
-_BACKEND_CACHE: dict[tuple[str, str, str], OCRBackend] = {}
+_BACKEND_CACHE: dict[tuple[str, str, Any], OCRBackend] = {}
 
 
 def create_ocr_backend(
@@ -92,9 +92,7 @@ def ocr_image(
     backend: OCRBackend | None = None,
 ) -> str:
     effective_options = {"psm": psm, **(options or {})}
-    key = cache_key(image, engine, lang, effective_options)
-    safe_lang = re.sub(r"[^A-Za-z0-9_-]+", "-", lang)
-    cache_file = cache_dir / f"{image.stem}.{engine}-{safe_lang}-{key}.txt"
+    cache_file = _cache_file(image, cache_dir, engine, lang, effective_options)
     if cache_file.exists() and not force:
         return cache_file.read_text(encoding="utf-8")
 
@@ -105,6 +103,72 @@ def ocr_image(
     return text
 
 
+def ocr_images(
+    images: list[Path],
+    cache_dir: Path,
+    lang: str = "ja",
+    psm: int = 3,
+    force: bool = False,
+    engine: str = "paddle",
+    options: dict[str, Any] | None = None,
+    backend: OCRBackend | None = None,
+) -> dict[Path, str]:
+    """OCR a book's pages, using a backend batch API when available."""
+    effective_options = {"psm": psm, **(options or {})}
+    results: dict[Path, str] = {}
+    pending: list[Path] = []
+    for image in images:
+        cache_file = _cache_file(image, cache_dir, engine, lang, effective_options)
+        if cache_file.exists() and not force:
+            results[image] = cache_file.read_text(encoding="utf-8")
+        else:
+            pending.append(image)
+
+    if not pending:
+        return results
+
+    selected_backend = backend or create_ocr_backend(engine, lang, effective_options)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    recognize_many = getattr(selected_backend, "recognize_many", None)
+    if callable(recognize_many):
+        recognized = recognize_many(pending)
+        for image in pending:
+            if image.resolve() not in recognized:
+                raise OCRError(f"OCR 결과가 없습니다: {image.name}")
+            text = recognized[image.resolve()]
+            _cache_file(image, cache_dir, engine, lang, effective_options).write_text(
+                text,
+                encoding="utf-8",
+            )
+            results[image] = text
+        return results
+
+    for image in pending:
+        results[image] = ocr_image(
+            image=image,
+            cache_dir=cache_dir,
+            lang=lang,
+            psm=psm,
+            force=force,
+            engine=engine,
+            options=options,
+            backend=selected_backend,
+        )
+    return results
+
+
+def _cache_file(
+    image: Path,
+    cache_dir: Path,
+    engine: str,
+    language: str,
+    options: dict[str, Any],
+) -> Path:
+    key = cache_key(image, engine, language, options)
+    safe_lang = re.sub(r"[^A-Za-z0-9_-]+", "-", language)
+    return cache_dir / f"{image.stem}.{engine}-{safe_lang}-{key}.txt"
+
+
 __all__ = [
     "OCRError",
     "OCRBackend",
@@ -112,4 +176,5 @@ __all__ = [
     "cache_key",
     "create_ocr_backend",
     "ocr_image",
+    "ocr_images",
 ]
