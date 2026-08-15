@@ -8,12 +8,22 @@ from folder2epub.ocr import (
     create_ocr_backend,
     ocr_image,
     ocr_images,
+    resolve_ocr_engine,
 )
 
 
 def test_ocr_backend_factory_rejects_unknown_engine():
     with pytest.raises(OCRError, match="지원하지 않는 OCR engine"):
         create_ocr_backend("unknown", "ja")
+
+
+def test_auto_engine_resolves_by_platform(monkeypatch):
+    monkeypatch.setattr("folder2epub.ocr.sys", "platform", "win32")
+    assert resolve_ocr_engine("auto") == "paddle"
+
+    monkeypatch.setattr("folder2epub.ocr.sys", "platform", "darwin")
+    monkeypatch.setattr("folder2epub.ocr.platform.machine", lambda: "arm64")
+    assert resolve_ocr_engine("auto") == "mlx"
 
 
 def test_optional_paddle_package_has_actionable_error(monkeypatch):

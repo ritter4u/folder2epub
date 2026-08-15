@@ -4,7 +4,7 @@
 
 `folder2epub`는 이미지 폴더를 EPUB으로 변환하는 Python 3.10+ CLI다. 일본어 스캔 서적을 주요 대상으로 하며, OCR engine을 교체할 수 있도록 OCR 기능을 독립 backend로 분리한다.
 
-Apple Silicon 환경의 기본 OCR engine은 MLX OCR이고 기본 언어는 `ja`다. PaddleOCR, `manga-ocr`와 기존 Tesseract는 선택적으로 사용할 수 있다.
+OCR engine 기본값은 플랫폼 자동 선택이다. Apple Silicon macOS에서는 MLX OCR을, Windows·Linux·Intel Mac에서는 PaddleOCR을 선택한다. `mlx`, `paddle`, `manga`, `tesseract`를 명시적으로 선택할 수도 있다.
 
 ## 2. 실행 모델
 
@@ -116,8 +116,9 @@ pip install manga-ocr
 ## 8. CLI와 출력 규칙
 
 - `--ocr`: OCR 활성화
-- `--ocr-engine mlx|paddle|manga|tesseract`: backend 선택
+- `--ocr-engine auto|mlx|paddle|manga|tesseract`: backend 선택
 - `--ocr-model auto|mobile|server`: MLX model preset 선택
+- `--ocr-device auto|cpu|gpu`: PaddleOCR 실행 장치 선택
 - `--lang ja`: OCR 언어, 기본값 `ja`
 - `--recursive`: 하위 이미지 폴더를 개별 EPUB으로 변환
 - `--output`: 단일 EPUB의 정확한 파일 경로

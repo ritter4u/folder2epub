@@ -1,6 +1,6 @@
 # folder2epub
 
-이미지 폴더를 EPUB으로 만들고, 선택적으로 페이지별 OCR 텍스트를 넣는 Python CLI입니다. 기본 OCR engine은 Apple Silicon용 MLX OCR이며, PaddleOCR, manga-ocr와 Tesseract를 선택적으로 사용할 수 있습니다.
+이미지 폴더를 EPUB으로 만들고, 선택적으로 페이지별 OCR 텍스트를 넣는 Python CLI입니다. OCR engine 기본값은 플랫폼 자동 선택이며, Apple Silicon macOS에서는 MLX OCR을, Windows·Linux·Intel Mac에서는 PaddleOCR을 사용합니다.
 
 ## MLX란?
 
@@ -87,7 +87,7 @@ folder2epub --help
 folder2epub --ui-lang en --help
 ```
 
-주요 옵션은 `--ocr`, `--ocr-engine mlx|paddle|manga|tesseract`, `--ocr-model auto|mobile|server`, `--lang`, `--ui-lang ko|en`, `--locale-dir`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
+주요 옵션은 `--ocr`, `--ocr-engine auto|mlx|paddle|manga|tesseract`, `--ocr-model auto|mobile|server`, `--ocr-device auto|cpu|gpu`, `--lang`, `--ui-lang ko|en`, `--locale-dir`, `--mode hybrid|text|image`, `--force-ocr`, `--title`, `--author`, `--cover`, `--output`, `--output-dir`, `--recursive`입니다.
 
 ## 다국어 메시지와 외부 리소스
 
@@ -179,7 +179,14 @@ brew install tesseract-lang
 uv pip install -e ".[tesseract]" # Python 추가 패키지는 없음
 ```
 
-PaddleOCR, manga-ocr, Tesseract는 호환성을 위해 남아 있지만 기본 engine이 아닙니다. `--ocr-engine`으로 명시해야 합니다.
+Windows에서는 PaddleOCR을 설치한 뒤 다음처럼 실행할 수 있습니다.
+
+```bash
+uv pip install -e ".[paddle]"
+folder2epub C:\\Books\\my-book --ocr --ocr-engine paddle --ocr-device cpu
+```
+
+`--ocr-engine auto`를 사용하면 Windows에서는 PaddleOCR, Apple Silicon macOS에서는 MLX가 선택됩니다.
 
 ## EPUB 모드와 캐시
 
@@ -242,7 +249,7 @@ src/folder2epub/
 
 # English
 
-`folder2epub` converts folders of page images into EPUB files. MLX OCR is the default backend on Apple Silicon and Japanese (`ja`) is the default OCR language. PaddleOCR, `manga-ocr`, and Tesseract are optional backends.
+`folder2epub` converts folders of page images into EPUB files. The default OCR engine is platform-aware: MLX on Apple Silicon macOS and PaddleOCR on Windows, Linux, and Intel Macs. Japanese (`ja`) is the default OCR language.
 
 ## Quick start
 

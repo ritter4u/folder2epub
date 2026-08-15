@@ -4,7 +4,7 @@
 
 `folder2epub` is a Python 3.10+ CLI that converts image folders into EPUB files. Its primary target is scanned Japanese books, so OCR is isolated behind replaceable backends.
 
-MLX OCR is the default backend on Apple Silicon and `ja` is the default language. PaddleOCR, `manga-ocr`, and the existing Tesseract implementation are optional backends.
+The default OCR engine is platform-aware: MLX on Apple Silicon macOS, and PaddleOCR on Windows, Linux, and Intel Macs. `ja` remains the default language. MLX, PaddleOCR, `manga-ocr`, and Tesseract can also be selected explicitly.
 
 ## 2. Execution model
 
@@ -116,8 +116,9 @@ Tesseract is retained for compatibility. It uses the system executable and insta
 ## 8. CLI and output rules
 
 - `--ocr`: enable OCR
-- `--ocr-engine mlx|paddle|manga|tesseract`: select a backend
+- `--ocr-engine auto|mlx|paddle|manga|tesseract`: select a backend
 - `--ocr-model auto|mobile|server`: select the MLX model preset
+- `--ocr-device auto|cpu|gpu`: select the PaddleOCR device
 - `--lang ja`: OCR language, default `ja`
 - `--recursive`: convert nested image directories into separate EPUBs
 - `--output`: exact output path for a single EPUB

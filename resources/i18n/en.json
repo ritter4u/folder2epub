@@ -1,7 +1,7 @@
 {
   "help_text": "Usage: folder2epub [OPTIONS] FOLDER\n\nConvert an image folder into an EPUB.\n\nOptions:\n  --ocr                       Run OCR\n  --ocr-engine ENGINE         mlx | paddle | manga | tesseract\n  --ocr-model MODEL           MLX model: auto | mobile | server\n  --lang LANGUAGE             OCR language (default: ja)\n  --ui-lang LANGUAGE          CLI message language (ko | en)\n  --locale-dir PATH           External i18n resource directory\n  --recursive                 Convert nested image folders into separate EPUBs\n  --output PATH               Output path for one EPUB\n  --output-dir PATH           EPUB output directory\n  --mode MODE                 hybrid | text | image\n  --force-ocr                 Ignore the OCR cache\n  --title TEXT                Book title\n  --author TEXT               Author\n  --cover PATH                Cover image\n  --epub-language CODE        EPUB language code\n  --help                      Show this help",
   "mode_error": "--mode must be one of hybrid, text, image.",
-  "engine_error": "--ocr-engine must be one of mlx, paddle, manga, tesseract.",
+  "engine_error": "--ocr-engine must be one of auto, mlx, paddle, manga, tesseract.",
   "no_images": "No images found: {folder}",
   "output_conflict": "--output and --output-dir cannot be used together.",
   "recursive_output_error": "Use --output-dir instead of --output with --recursive.",

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import platform
 import re
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -13,7 +15,7 @@ from .mlx import MLXOCRBackend
 from .paddle import PaddleOCRBackend
 from .tesseract import TesseractOCRBackend
 
-SUPPORTED_ENGINES = ("mlx", "paddle", "manga", "tesseract")
+SUPPORTED_ENGINES = ("auto", "mlx", "paddle", "manga", "tesseract")
 _BACKEND_CACHE: dict[tuple[str, str, Any], OCRBackend] = {}
 
 
@@ -22,7 +24,7 @@ def create_ocr_backend(
     language: str = "ja",
     options: dict[str, Any] | None = None,
 ) -> OCRBackend:
-    normalized = engine.strip().lower()
+    normalized = resolve_ocr_engine(engine)
     cache_key_value = (normalized, language, _normalize_option(options or {}))
     cached = _BACKEND_CACHE.get(cache_key_value)
     if cached is not None:
@@ -42,6 +44,16 @@ def create_ocr_backend(
 
     _BACKEND_CACHE[cache_key_value] = backend
     return backend
+
+
+def resolve_ocr_engine(engine: str) -> str:
+    """Resolve the platform-aware default without probing optional packages."""
+    normalized = engine.strip().lower()
+    if normalized != "auto":
+        return normalized
+    if sys.platform == "darwin" and platform.machine().lower() in {"arm64", "aarch64"}:
+        return "mlx"
+    return "paddle"
 
 
 def cache_key(
@@ -177,4 +189,5 @@ __all__ = [
     "create_ocr_backend",
     "ocr_image",
     "ocr_images",
+    "resolve_ocr_engine",
 ]
